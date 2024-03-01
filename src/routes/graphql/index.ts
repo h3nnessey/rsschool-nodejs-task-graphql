@@ -18,21 +18,6 @@ import {
 import { MemberTypeId } from '../member-types/schemas.js';
 import { UUIDType } from './types/uuid.js';
 
-const userType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'User',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    name: {
-      type: GraphQLString,
-    },
-    balance: {
-      type: GraphQLFloat,
-    },
-  }),
-});
-
 const memberTypeId = new GraphQLEnumType({
   name: 'MemberTypeId',
   values: {
@@ -86,11 +71,46 @@ const profileType: GraphQLObjectType = new GraphQLObjectType({
     yearOfBirth: {
       type: GraphQLInt,
     },
-    userId: {
+    memberType: {
+      type: memberType,
+      resolve: async (
+        { memberTypeId }: { memberTypeId: MemberTypeId },
+        _args,
+        { prisma }: FastifyInstance,
+      ) => {
+        return await prisma.memberType.findUnique({
+          where: { id: memberTypeId },
+        });
+      },
+    },
+  }),
+});
+
+const userType: GraphQLObjectType = new GraphQLObjectType({
+  name: 'User',
+  fields: () => ({
+    id: {
       type: new GraphQLNonNull(UUIDType),
     },
-    memberTypeId: {
-      type: memberTypeId,
+    name: {
+      type: GraphQLString,
+    },
+    balance: {
+      type: GraphQLFloat,
+    },
+    profile: {
+      type: profileType,
+      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
+        return await prisma.profile.findUnique({
+          where: { userId: id },
+        });
+      },
+    },
+    posts: {
+      type: new GraphQLList(postType),
+      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
+        return await prisma.post.findMany({ where: { authorId: id } });
+      },
     },
   }),
 });
