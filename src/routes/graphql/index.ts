@@ -273,9 +273,47 @@ const schema = new GraphQLSchema({
           },
           { prisma }: FastifyInstance,
         ) => {
-          const res = 
-          await prisma.profile.create({ data: dto });
-          return res
+          const res = await prisma.profile.create({ data: dto });
+          return res;
+        },
+      },
+      deleteUser: {
+        type: GraphQLString,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+          try {
+            const user = await prisma.user.delete({ where: { id } });
+
+            return user.id;
+          } catch {
+            return null;
+          }
+        },
+      },
+      deletePost: {
+        type: GraphQLString,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+          try {
+            const post = await prisma.post.delete({ where: { id } });
+
+            return post.id;
+          } catch {
+            return null;
+          }
+        },
+      },
+      deleteProfile: {
+        type: GraphQLString,
+        args: { id: { type: new GraphQLNonNull(UUIDType) } },
+        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+          try {
+            const profile = await prisma.post.delete({ where: { id } });
+
+            return profile.id;
+          } catch {
+            return null;
+          }
         },
       },
     },
