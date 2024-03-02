@@ -11,6 +11,7 @@ import {
   GraphQLEnumType,
   GraphQLInt,
   GraphQLBoolean,
+  GraphQLInputObjectType,
   parse,
   validate,
 } from 'graphql';
@@ -64,6 +65,9 @@ const profileType: GraphQLObjectType = new GraphQLObjectType({
   name: 'Profile',
   fields: () => ({
     id: {
+      type: new GraphQLNonNull(UUIDType),
+    },
+    userId: {
       type: new GraphQLNonNull(UUIDType),
     },
     isMale: {
@@ -132,6 +136,41 @@ const userType: GraphQLObjectType = new GraphQLObjectType({
   }),
 });
 
+const createUserInputType = new GraphQLInputObjectType({
+  name: 'CreateUserInput',
+  fields: () => ({
+    name: { type: GraphQLString },
+    balance: { type: GraphQLFloat },
+  }),
+});
+
+const createPostInputType = new GraphQLInputObjectType({
+  name: 'CreatePostInput',
+  fields: () => ({
+    authorId: { type: new GraphQLNonNull(UUIDType) },
+    title: { type: GraphQLString },
+    content: { type: GraphQLString },
+  }),
+});
+
+const createProfileInputType = new GraphQLInputObjectType({
+  name: 'CreateProfileInput',
+  fields: () => ({
+    userId: {
+      type: new GraphQLNonNull(UUIDType),
+    },
+    memberTypeId: {
+      type: memberTypeId,
+    },
+    isMale: {
+      type: GraphQLBoolean,
+    },
+    yearOfBirth: {
+      type: GraphQLInt,
+    },
+  }),
+});
+
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
     name: 'Query',
@@ -190,14 +229,53 @@ const schema = new GraphQLSchema({
       },
     },
   }),
-  // does nothing
   mutation: new GraphQLObjectType({
     name: 'Mutation',
     fields: {
-      users: {
-        type: new GraphQLList(userType),
-        resolve: async (_source, _args, { prisma }: FastifyInstance) => {
-          return await prisma.user.findMany();
+      createUser: {
+        type: userType,
+        args: { dto: { type: createUserInputType } },
+        resolve: async (
+          _source,
+          { dto }: { dto: { name: string; balance: number } },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.user.create({
+            data: dto,
+          });
+        },
+      },
+      createPost: {
+        type: postType,
+        args: { dto: { type: createPostInputType } },
+        resolve: async (
+          _source,
+          { dto }: { dto: { title: string; content: string; authorId: string } },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.post.create({ data: dto });
+        },
+      },
+      createProfile: {
+        type: profileType,
+        args: { dto: { type: createProfileInputType } },
+        resolve: async (
+          _source,
+          {
+            dto,
+          }: {
+            dto: {
+              isMale: boolean;
+              yearOfBirth: number;
+              memberTypeId: MemberTypeId;
+              userId: string;
+            };
+          },
+          { prisma }: FastifyInstance,
+        ) => {
+          const res = 
+          await prisma.profile.create({ data: dto });
+          return res
         },
       },
     },
