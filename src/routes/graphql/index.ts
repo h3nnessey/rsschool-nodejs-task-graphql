@@ -144,10 +144,26 @@ const createUserInputType = new GraphQLInputObjectType({
   }),
 });
 
+const changeUserInputType = new GraphQLInputObjectType({
+  name: 'ChangeUserInput',
+  fields: () => ({
+    name: { type: GraphQLString },
+    balance: { type: GraphQLFloat },
+  }),
+});
+
 const createPostInputType = new GraphQLInputObjectType({
   name: 'CreatePostInput',
   fields: () => ({
     authorId: { type: new GraphQLNonNull(UUIDType) },
+    title: { type: GraphQLString },
+    content: { type: GraphQLString },
+  }),
+});
+
+const changePostInputType = new GraphQLInputObjectType({
+  name: 'ChangePostInput',
+  fields: () => ({
     title: { type: GraphQLString },
     content: { type: GraphQLString },
   }),
@@ -159,6 +175,21 @@ const createProfileInputType = new GraphQLInputObjectType({
     userId: {
       type: new GraphQLNonNull(UUIDType),
     },
+    memberTypeId: {
+      type: memberTypeId,
+    },
+    isMale: {
+      type: GraphQLBoolean,
+    },
+    yearOfBirth: {
+      type: GraphQLInt,
+    },
+  }),
+});
+
+const changeProfileInputType = new GraphQLInputObjectType({
+  name: 'ChangeProfileInput',
+  fields: () => ({
     memberTypeId: {
       type: memberTypeId,
     },
@@ -278,42 +309,84 @@ const schema = new GraphQLSchema({
         },
       },
       deleteUser: {
-        type: GraphQLString,
+        type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            const user = await prisma.user.delete({ where: { id } });
-
-            return user.id;
+            return (await prisma.user.delete({ where: { id } })) && true;
           } catch {
-            return null;
+            return false;
           }
         },
       },
       deletePost: {
-        type: GraphQLString,
+        type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            const post = await prisma.post.delete({ where: { id } });
-
-            return post.id;
+            return (await prisma.post.delete({ where: { id } })) && true;
           } catch {
             return null;
           }
         },
       },
       deleteProfile: {
-        type: GraphQLString,
+        type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            const profile = await prisma.post.delete({ where: { id } });
-
-            return profile.id;
+            return (await prisma.post.delete({ where: { id } })) && true;
           } catch {
             return null;
           }
+        },
+      },
+      changeUser: {
+        type: userType,
+        args: {
+          id: { type: new GraphQLNonNull(UUIDType) },
+          dto: { type: changeUserInputType },
+        },
+        resolve: async (
+          _source,
+          { id, dto }: { id: string; dto: { name: string; balance: number } },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.user.update({ where: { id }, data: dto });
+        },
+      },
+      changePost: {
+        type: postType,
+        args: {
+          id: { type: new GraphQLNonNull(UUIDType) },
+          dto: { type: changePostInputType },
+        },
+        resolve: async (
+          _source,
+          { id, dto }: { id: string; dto: { title: string; content: string } },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.post.update({ where: { id }, data: dto });
+        },
+      },
+      changeProfile: {
+        type: profileType,
+        args: {
+          id: { type: new GraphQLNonNull(UUIDType) },
+          dto: { type: changeProfileInputType },
+        },
+        resolve: async (
+          _source,
+          {
+            id,
+            dto,
+          }: {
+            id: string;
+            dto: { isMale: boolean; yearOfBirth: number; memberTypeId: MemberTypeId };
+          },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.profile.update({ where: { id }, data: dto });
         },
       },
     },
