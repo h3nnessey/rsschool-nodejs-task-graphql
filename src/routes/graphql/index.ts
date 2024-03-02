@@ -12,8 +12,6 @@ import {
   GraphQLEnumType,
   GraphQLInt,
   GraphQLBoolean,
-  parse,
-  validate,
 } from 'graphql';
 import { MemberTypeId } from '../member-types/schemas.js';
 import { UUIDType } from './types/uuid.js';
@@ -86,6 +84,15 @@ const profileType: GraphQLObjectType = new GraphQLObjectType({
   }),
 });
 
+// model SubscribersOnAuthors {
+//   subscriber   User   @relation("subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+//   subscriberId String
+//   author       User   @relation("author", fields: [authorId], references: [id], onDelete: Cascade)
+//   authorId     String
+//
+//   @@id([subscriberId, authorId])
+// }
+
 const userType: GraphQLObjectType = new GraphQLObjectType({
   name: 'User',
   fields: () => ({
@@ -110,6 +117,22 @@ const userType: GraphQLObjectType = new GraphQLObjectType({
       type: new GraphQLList(postType),
       resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
         return await prisma.post.findMany({ where: { authorId: id } });
+      },
+    },
+    userSubscribedTo: {
+      type: new GraphQLList(userType),
+      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
+        return await prisma.user.findMany({
+          where: { subscribedToUser: { some: { subscriberId: id } } },
+        });
+      },
+    },
+    subscribedToUser: {
+      type: new GraphQLList(userType),
+      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
+        return await prisma.user.findMany({
+          where: { userSubscribedTo: { some: { authorId: id } } },
+        });
       },
     },
   }),
@@ -198,12 +221,6 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async handler({ body: { query, variables } }) {
-      const gqlErrors = validate(schema, parse(query));
-
-      if (gqlErrors.length > 0) {
-        return { data: null, errors: gqlErrors };
-      }
-
       return await graphql({
         schema,
         source: query,
