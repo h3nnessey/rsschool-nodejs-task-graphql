@@ -313,7 +313,9 @@ const schema = new GraphQLSchema({
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            return (await prisma.user.delete({ where: { id } })) && true;
+            await prisma.user.delete({ where: { id } });
+
+            return true;
           } catch {
             return false;
           }
@@ -324,9 +326,11 @@ const schema = new GraphQLSchema({
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            return (await prisma.post.delete({ where: { id } })) && true;
+            await prisma.post.delete({ where: { id } });
+
+            return true;
           } catch {
-            return null;
+            return false;
           }
         },
       },
@@ -335,9 +339,11 @@ const schema = new GraphQLSchema({
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
         resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
           try {
-            return (await prisma.post.delete({ where: { id } })) && true;
+            await prisma.profile.delete({ where: { id } });
+
+            return true;
           } catch {
-            return null;
+            return false;
           }
         },
       },
@@ -387,6 +393,58 @@ const schema = new GraphQLSchema({
           { prisma }: FastifyInstance,
         ) => {
           return await prisma.profile.update({ where: { id }, data: dto });
+        },
+      },
+      subscribeTo: {
+        type: userType,
+        args: {
+          userId: { type: new GraphQLNonNull(UUIDType) },
+          authorId: { type: new GraphQLNonNull(UUIDType) },
+        },
+        resolve: async (
+          _source,
+          { userId, authorId }: { userId: string; authorId: string },
+          { prisma }: FastifyInstance,
+        ) => {
+          return await prisma.user.update({
+            where: {
+              id: userId,
+            },
+            data: {
+              userSubscribedTo: {
+                create: {
+                  authorId: authorId,
+                },
+              },
+            },
+          });
+        },
+      },
+      unsubscribeFrom: {
+        type: GraphQLBoolean,
+        args: {
+          userId: { type: new GraphQLNonNull(UUIDType) },
+          authorId: { type: new GraphQLNonNull(UUIDType) },
+        },
+        resolve: async (
+          _source,
+          { userId, authorId }: { userId: string; authorId: string },
+          { prisma }: FastifyInstance,
+        ) => {
+          try {
+            await prisma.subscribersOnAuthors.delete({
+              where: {
+                subscriberId_authorId: {
+                  subscriberId: userId,
+                  authorId: authorId,
+                },
+              },
+            });
+
+            return true;
+          } catch {
+            return false;
+          }
         },
       },
     },
