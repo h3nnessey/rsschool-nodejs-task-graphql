@@ -1,6 +1,5 @@
 import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { FastifyInstance } from 'fastify';
-import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import {
   graphql,
   GraphQLSchema,
@@ -12,8 +11,12 @@ import {
   GraphQLEnumType,
   GraphQLInt,
   GraphQLBoolean,
+  parse,
+  validate,
 } from 'graphql';
+import depthLimit from 'graphql-depth-limit';
 import { MemberTypeId } from '../member-types/schemas.js';
+import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import { UUIDType } from './types/uuid.js';
 
 const memberTypeId = new GraphQLEnumType({
@@ -83,15 +86,6 @@ const profileType: GraphQLObjectType = new GraphQLObjectType({
     },
   }),
 });
-
-// model SubscribersOnAuthors {
-//   subscriber   User   @relation("subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
-//   subscriberId String
-//   author       User   @relation("author", fields: [authorId], references: [id], onDelete: Cascade)
-//   authorId     String
-//
-//   @@id([subscriberId, authorId])
-// }
 
 const userType: GraphQLObjectType = new GraphQLObjectType({
   name: 'User',
@@ -221,6 +215,12 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async handler({ body: { query, variables } }) {
+      const gqlErrors = validate(schema, parse(query), [depthLimit(5)]);
+
+      if (gqlErrors.length > 0) {
+        return { data: null, errors: gqlErrors };
+      }
+
       return await graphql({
         schema,
         source: query,
