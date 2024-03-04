@@ -1,206 +1,23 @@
 import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
-import { FastifyInstance } from 'fastify';
 import {
   graphql,
   GraphQLSchema,
   GraphQLObjectType,
-  GraphQLString,
-  GraphQLFloat,
   GraphQLList,
   GraphQLNonNull,
-  GraphQLEnumType,
-  GraphQLInt,
   GraphQLBoolean,
-  GraphQLInputObjectType,
   parse,
   validate,
 } from 'graphql';
 import depthLimit from 'graphql-depth-limit';
+import { ContextValue } from './types/context.js';
+import { changeUserInputType, createUserInputType, userType } from './types/user.js';
+import { changePostInputType, createPostInputType, postType } from './types/post.js';
+import { createProfileInputType, profileType } from './types/profile.js';
+import { memberType, memberTypeId } from './types/member.js';
 import { MemberTypeId } from '../member-types/schemas.js';
 import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import { UUIDType } from './types/uuid.js';
-
-const memberTypeId = new GraphQLEnumType({
-  name: 'MemberTypeId',
-  values: {
-    [MemberTypeId.BASIC]: { value: MemberTypeId.BASIC },
-    [MemberTypeId.BUSINESS]: { value: MemberTypeId.BUSINESS },
-  },
-});
-
-const memberType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'MemberType',
-  fields: () => ({
-    id: {
-      type: memberTypeId,
-    },
-    discount: {
-      type: GraphQLFloat,
-    },
-    postsLimitPerMonth: {
-      type: GraphQLInt,
-    },
-  }),
-});
-
-const postType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'Post',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    title: {
-      type: GraphQLString,
-    },
-    content: {
-      type: GraphQLString,
-    },
-    authorId: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-  }),
-});
-
-const profileType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'Profile',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    userId: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    isMale: {
-      type: GraphQLBoolean,
-    },
-    yearOfBirth: {
-      type: GraphQLInt,
-    },
-    memberType: {
-      type: memberType,
-      resolve: async (
-        { memberTypeId }: { memberTypeId: MemberTypeId },
-        _args,
-        { prisma }: FastifyInstance,
-      ) => {
-        return await prisma.memberType.findUnique({
-          where: { id: memberTypeId },
-        });
-      },
-    },
-  }),
-});
-
-const userType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'User',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    name: {
-      type: GraphQLString,
-    },
-    balance: {
-      type: GraphQLFloat,
-    },
-    profile: {
-      type: profileType,
-      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
-        return await prisma.profile.findUnique({
-          where: { userId: id },
-        });
-      },
-    },
-    posts: {
-      type: new GraphQLList(postType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
-        return await prisma.post.findMany({ where: { authorId: id } });
-      },
-    },
-    userSubscribedTo: {
-      type: new GraphQLList(userType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
-        return await prisma.user.findMany({
-          where: { subscribedToUser: { some: { subscriberId: id } } },
-        });
-      },
-    },
-    subscribedToUser: {
-      type: new GraphQLList(userType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: FastifyInstance) => {
-        return await prisma.user.findMany({
-          where: { userSubscribedTo: { some: { authorId: id } } },
-        });
-      },
-    },
-  }),
-});
-
-const createUserInputType = new GraphQLInputObjectType({
-  name: 'CreateUserInput',
-  fields: () => ({
-    name: { type: GraphQLString },
-    balance: { type: GraphQLFloat },
-  }),
-});
-
-const changeUserInputType = new GraphQLInputObjectType({
-  name: 'ChangeUserInput',
-  fields: () => ({
-    name: { type: GraphQLString },
-    balance: { type: GraphQLFloat },
-  }),
-});
-
-const createPostInputType = new GraphQLInputObjectType({
-  name: 'CreatePostInput',
-  fields: () => ({
-    authorId: { type: new GraphQLNonNull(UUIDType) },
-    title: { type: GraphQLString },
-    content: { type: GraphQLString },
-  }),
-});
-
-const changePostInputType = new GraphQLInputObjectType({
-  name: 'ChangePostInput',
-  fields: () => ({
-    title: { type: GraphQLString },
-    content: { type: GraphQLString },
-  }),
-});
-
-const createProfileInputType = new GraphQLInputObjectType({
-  name: 'CreateProfileInput',
-  fields: () => ({
-    userId: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    memberTypeId: {
-      type: memberTypeId,
-    },
-    isMale: {
-      type: GraphQLBoolean,
-    },
-    yearOfBirth: {
-      type: GraphQLInt,
-    },
-  }),
-});
-
-const changeProfileInputType = new GraphQLInputObjectType({
-  name: 'ChangeProfileInput',
-  fields: () => ({
-    memberTypeId: {
-      type: memberTypeId,
-    },
-    isMale: {
-      type: GraphQLBoolean,
-    },
-    yearOfBirth: {
-      type: GraphQLInt,
-    },
-  }),
-});
 
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
@@ -208,53 +25,53 @@ const schema = new GraphQLSchema({
     fields: {
       users: {
         type: new GraphQLList(userType),
-        resolve: async (_source, _args, { prisma }: FastifyInstance) => {
+        resolve: async (_source, _args, { prisma }: ContextValue) => {
           return await prisma.user.findMany();
         },
       },
       user: {
         type: userType,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           return await prisma.user.findUnique({ where: { id } });
         },
       },
       posts: {
         type: new GraphQLList(postType),
-        resolve: async (_source, _args, { prisma }: FastifyInstance) => {
+        resolve: async (_source, _args, { prisma }: ContextValue) => {
           return await prisma.post.findMany();
         },
       },
       post: {
         type: postType,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           return await prisma.post.findUnique({ where: { id } });
         },
       },
       memberTypes: {
         type: new GraphQLList(memberType),
-        resolve: async (_source, _args, { prisma }: FastifyInstance) => {
+        resolve: async (_source, _args, { prisma }: ContextValue) => {
           return await prisma.memberType.findMany();
         },
       },
       memberType: {
         type: memberType,
         args: { id: { type: new GraphQLNonNull(memberTypeId) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           return await prisma.memberType.findUnique({ where: { id } });
         },
       },
       profiles: {
         type: new GraphQLList(profileType),
-        resolve: async (_source, _args, { prisma }: FastifyInstance) => {
+        resolve: async (_source, _args, { prisma }: ContextValue) => {
           return await prisma.profile.findMany();
         },
       },
       profile: {
         type: profileType,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           return await prisma.profile.findUnique({ where: { id } });
         },
       },
@@ -265,11 +82,11 @@ const schema = new GraphQLSchema({
     fields: {
       createUser: {
         type: userType,
-        args: { dto: { type: createUserInputType } },
+        args: { dto: { type: new GraphQLNonNull(createUserInputType) } },
         resolve: async (
           _source,
           { dto }: { dto: { name: string; balance: number } },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.user.create({
             data: dto,
@@ -278,18 +95,18 @@ const schema = new GraphQLSchema({
       },
       createPost: {
         type: postType,
-        args: { dto: { type: createPostInputType } },
+        args: { dto: { type: new GraphQLNonNull(createPostInputType) } },
         resolve: async (
           _source,
           { dto }: { dto: { title: string; content: string; authorId: string } },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.post.create({ data: dto });
         },
       },
       createProfile: {
         type: profileType,
-        args: { dto: { type: createProfileInputType } },
+        args: { dto: { type: new GraphQLNonNull(createProfileInputType) } },
         resolve: async (
           _source,
           {
@@ -302,7 +119,7 @@ const schema = new GraphQLSchema({
               userId: string;
             };
           },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           const res = await prisma.profile.create({ data: dto });
           return res;
@@ -311,7 +128,7 @@ const schema = new GraphQLSchema({
       deleteUser: {
         type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           try {
             await prisma.user.delete({ where: { id } });
 
@@ -324,7 +141,7 @@ const schema = new GraphQLSchema({
       deletePost: {
         type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           try {
             await prisma.post.delete({ where: { id } });
 
@@ -337,7 +154,7 @@ const schema = new GraphQLSchema({
       deleteProfile: {
         type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: FastifyInstance) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           try {
             await prisma.profile.delete({ where: { id } });
 
@@ -351,12 +168,12 @@ const schema = new GraphQLSchema({
         type: userType,
         args: {
           id: { type: new GraphQLNonNull(UUIDType) },
-          dto: { type: changeUserInputType },
+          dto: { type: new GraphQLNonNull(changeUserInputType) },
         },
         resolve: async (
           _source,
           { id, dto }: { id: string; dto: { name: string; balance: number } },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.user.update({ where: { id }, data: dto });
         },
@@ -365,12 +182,12 @@ const schema = new GraphQLSchema({
         type: postType,
         args: {
           id: { type: new GraphQLNonNull(UUIDType) },
-          dto: { type: changePostInputType },
+          dto: { type: new GraphQLNonNull(changePostInputType) },
         },
         resolve: async (
           _source,
           { id, dto }: { id: string; dto: { title: string; content: string } },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.post.update({ where: { id }, data: dto });
         },
@@ -379,7 +196,7 @@ const schema = new GraphQLSchema({
         type: profileType,
         args: {
           id: { type: new GraphQLNonNull(UUIDType) },
-          dto: { type: changeProfileInputType },
+          dto: { type: new GraphQLNonNull(changeProfileInputType) },
         },
         resolve: async (
           _source,
@@ -390,7 +207,7 @@ const schema = new GraphQLSchema({
             id: string;
             dto: { isMale: boolean; yearOfBirth: number; memberTypeId: MemberTypeId };
           },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.profile.update({ where: { id }, data: dto });
         },
@@ -404,7 +221,7 @@ const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           return await prisma.user.update({
             where: {
@@ -429,7 +246,7 @@ const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma }: FastifyInstance,
+          { prisma }: ContextValue,
         ) => {
           try {
             await prisma.subscribersOnAuthors.delete({
@@ -472,7 +289,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         schema,
         source: query,
         variableValues: variables,
-        contextValue: fastify,
+        contextValue: { prisma: fastify.prisma },
       });
     },
   });
