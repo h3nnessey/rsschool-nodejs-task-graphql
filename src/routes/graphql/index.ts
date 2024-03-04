@@ -13,7 +13,11 @@ import depthLimit from 'graphql-depth-limit';
 import { ContextValue } from './types/context.js';
 import { changeUserInputType, createUserInputType, userType } from './types/user.js';
 import { changePostInputType, createPostInputType, postType } from './types/post.js';
-import { createProfileInputType, profileType } from './types/profile.js';
+import {
+  createProfileInputType,
+  changeProfileInputType,
+  profileType,
+} from './types/profile.js';
 import { memberType, memberTypeId } from './types/member.js';
 import { MemberTypeId } from '../member-types/schemas.js';
 import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
