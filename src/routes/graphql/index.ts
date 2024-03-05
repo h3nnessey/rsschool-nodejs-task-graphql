@@ -9,6 +9,7 @@ import {
   parse,
   validate,
 } from 'graphql';
+import { reGenLoaders } from './loaders/loaders.js';
 import depthLimit from 'graphql-depth-limit';
 import { ContextValue } from './types/context.js';
 import { changeUserInputType, createUserInputType, userType } from './types/user.js';
@@ -17,11 +18,15 @@ import {
   createProfileInputType,
   changeProfileInputType,
   profileType,
+  Profile,
 } from './types/profile.js';
 import { memberType, memberTypeId } from './types/member.js';
 import { MemberTypeId } from '../member-types/schemas.js';
 import { createGqlResponseSchema, gqlResponseSchema } from './schemas.js';
 import { UUIDType } from './types/uuid.js';
+
+import { User } from '@prisma/client';
+import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
@@ -29,15 +34,50 @@ const schema = new GraphQLSchema({
     fields: {
       users: {
         type: new GraphQLList(userType),
-        resolve: async (_source, _args, { prisma }: ContextValue) => {
-          return await prisma.user.findMany();
+        resolve: async (
+          _source,
+          _args,
+          { prisma, userLoader }: ContextValue,
+          resolveInfo,
+        ) => {
+          const requestedUserFields =
+            parseResolveInfo(resolveInfo)?.fieldsByTypeName.User ?? {};
+
+          const users = await prisma.user.findMany({
+            include: {
+              subscribedToUser: 'subscribedToUser' in requestedUserFields,
+              userSubscribedTo: 'userSubscribedTo' in requestedUserFields,
+            },
+          });
+
+          const ids: string[] = [];
+
+          const userMap = new Map<string, User>(
+            users.map((user) => {
+              user.subscribedToUser?.forEach((subscriber) =>
+                ids.push(subscriber.subscriberId),
+              );
+
+              user.userSubscribedTo?.forEach((author) => ids.push(author.authorId));
+
+              return [user.id, user];
+            }),
+          );
+
+          ids.forEach((id) => userLoader.prime(id, userMap.get(id) as User));
+
+          return users;
         },
       },
       user: {
         type: userType,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
-          return await prisma.user.findUnique({ where: { id } });
+        resolve: async (
+          _source,
+          { id }: { id: string },
+          { userLoader }: ContextValue,
+        ) => {
+          return await userLoader.load(id);
         },
       },
       posts: {
@@ -116,12 +156,7 @@ const schema = new GraphQLSchema({
           {
             dto,
           }: {
-            dto: {
-              isMale: boolean;
-              yearOfBirth: number;
-              memberTypeId: MemberTypeId;
-              userId: string;
-            };
+            dto: Omit<Profile, 'id'>;
           },
           { prisma }: ContextValue,
         ) => {
@@ -132,8 +167,13 @@ const schema = new GraphQLSchema({
       deleteUser: {
         type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
+        resolve: async (
+          _source,
+          { id }: { id: string },
+          { prisma, userLoader }: ContextValue,
+        ) => {
           try {
+            userLoader.clear(id);
             await prisma.user.delete({ where: { id } });
 
             return true;
@@ -176,9 +216,11 @@ const schema = new GraphQLSchema({
         },
         resolve: async (
           _source,
-          { id, dto }: { id: string; dto: { name: string; balance: number } },
-          { prisma }: ContextValue,
+          { id, dto }: { id: string; dto: Pick<User, 'name' | 'balance'> },
+          { prisma, userLoader }: ContextValue,
         ) => {
+          userLoader.clear(id);
+
           return await prisma.user.update({ where: { id }, data: dto });
         },
       },
@@ -225,8 +267,10 @@ const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma }: ContextValue,
+          { prisma, userLoader }: ContextValue,
         ) => {
+          userLoader.clear(userId);
+
           return await prisma.user.update({
             where: {
               id: userId,
@@ -250,9 +294,11 @@ const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma }: ContextValue,
+          { prisma, userLoader }: ContextValue,
         ) => {
           try {
+            userLoader.clear(userId);
+
             await prisma.subscribersOnAuthors.delete({
               where: {
                 subscriberId_authorId: {
@@ -293,7 +339,10 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         schema,
         source: query,
         variableValues: variables,
-        contextValue: { prisma: fastify.prisma },
+        contextValue: {
+          prisma: fastify.prisma,
+          ...reGenLoaders(fastify.prisma),
+        },
       });
     },
   });

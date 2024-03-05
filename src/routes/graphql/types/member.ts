@@ -1,6 +1,12 @@
 import { GraphQLEnumType, GraphQLFloat, GraphQLInt, GraphQLObjectType } from 'graphql';
 import { MemberTypeId } from '../../member-types/schemas.js';
 
+export interface MemberType {
+  id: string;
+  discount: number;
+  postsLimitPerMonth: number;
+}
+
 export const memberTypeId = new GraphQLEnumType({
   name: 'MemberTypeId',
   values: {

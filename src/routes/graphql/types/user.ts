@@ -11,50 +11,13 @@ import { profileType } from './profile.js';
 import { ContextValue } from './context.js';
 import { postType } from './post.js';
 
-export const userType: GraphQLObjectType = new GraphQLObjectType({
-  name: 'User',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(UUIDType),
-    },
-    name: {
-      type: GraphQLString,
-    },
-    balance: {
-      type: GraphQLFloat,
-    },
-    profile: {
-      type: profileType,
-      resolve: async ({ id }: { id: string }, _args, { prisma }: ContextValue) => {
-        return await prisma.profile.findUnique({
-          where: { userId: id },
-        });
-      },
-    },
-    posts: {
-      type: new GraphQLList(postType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: ContextValue) => {
-        return await prisma.post.findMany({ where: { authorId: id } });
-      },
-    },
-    userSubscribedTo: {
-      type: new GraphQLList(userType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: ContextValue) => {
-        return await prisma.user.findMany({
-          where: { subscribedToUser: { some: { subscriberId: id } } },
-        });
-      },
-    },
-    subscribedToUser: {
-      type: new GraphQLList(userType),
-      resolve: async ({ id }: { id: string }, _args, { prisma }: ContextValue) => {
-        return await prisma.user.findMany({
-          where: { userSubscribedTo: { some: { authorId: id } } },
-        });
-      },
-    },
-  }),
-});
+export interface User {
+  id: string;
+  name: string;
+  balance: number;
+  subscribedToUser?: { subscriberId: string }[];
+  userSubscribedTo?: { authorId: string }[];
+}
 
 export const createUserInputType = new GraphQLInputObjectType({
   name: 'CreateUserInput',
@@ -69,5 +32,58 @@ export const changeUserInputType = new GraphQLInputObjectType({
   fields: () => ({
     name: { type: GraphQLString },
     balance: { type: GraphQLFloat },
+  }),
+});
+
+export const userType: GraphQLObjectType = new GraphQLObjectType({
+  name: 'User',
+  fields: () => ({
+    id: {
+      type: new GraphQLNonNull(UUIDType),
+    },
+    name: {
+      type: GraphQLString,
+    },
+    balance: {
+      type: GraphQLFloat,
+    },
+    profile: {
+      type: profileType,
+      resolve: async ({ id }: User, _args, { profileLoader }: ContextValue) => {
+        return await profileLoader.load(id);
+      },
+    },
+    posts: {
+      type: new GraphQLList(postType),
+      resolve: async ({ id }: User, _args, { postLoader }: ContextValue) => {
+        return await postLoader.load(id);
+      },
+    },
+    userSubscribedTo: {
+      type: new GraphQLList(userType),
+      resolve: async (
+        { userSubscribedTo }: User,
+        _args,
+        { userLoader }: ContextValue,
+      ) => {
+        return userSubscribedTo
+          ? await userLoader.loadMany(userSubscribedTo.map(({ authorId }) => authorId))
+          : [];
+      },
+    },
+    subscribedToUser: {
+      type: new GraphQLList(userType),
+      resolve: async (
+        { subscribedToUser }: User,
+        _args,
+        { userLoader }: ContextValue,
+      ) => {
+        return subscribedToUser
+          ? await userLoader.loadMany(
+              subscribedToUser.map(({ subscriberId }) => subscriberId),
+            )
+          : [];
+      },
+    },
   }),
 });

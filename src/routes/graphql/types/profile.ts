@@ -10,6 +10,14 @@ import { memberType, memberTypeId } from './member.js';
 import { MemberTypeId } from '../../member-types/schemas.js';
 import { ContextValue } from './context.js';
 
+export interface Profile {
+  id: string;
+  userId: string;
+  isMale: boolean;
+  yearOfBirth: number;
+  memberTypeId: string;
+}
+
 export const createProfileInputType = new GraphQLInputObjectType({
   name: 'CreateProfileInput',
   fields: () => ({
@@ -63,11 +71,9 @@ export const profileType = new GraphQLObjectType({
       resolve: async (
         { memberTypeId }: { memberTypeId: MemberTypeId },
         _args,
-        { prisma }: ContextValue,
+        { memberTypeLoader }: ContextValue,
       ) => {
-        return await prisma.memberType.findUnique({
-          where: { id: memberTypeId },
-        });
+        return await memberTypeLoader.load(memberTypeId);
       },
     },
   }),
