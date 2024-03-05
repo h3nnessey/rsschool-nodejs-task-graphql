@@ -72,21 +72,7 @@ export const schema = new GraphQLSchema({
             },
           });
 
-          const ids: string[] = [];
-
-          const userMap = new Map<string, User>(
-            users.map((user) => {
-              user.subscribedToUser?.forEach((subscriber) =>
-                ids.push(subscriber.subscriberId),
-              );
-
-              user.userSubscribedTo?.forEach((author) => ids.push(author.authorId));
-
-              return [user.id, user];
-            }),
-          );
-
-          ids.forEach((id) => userLoader.prime(id, userMap.get(id) as User));
+          users.forEach((user) => userLoader.prime(user.id, user));
 
           return users;
         },

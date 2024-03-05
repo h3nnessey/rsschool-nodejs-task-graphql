@@ -14,8 +14,8 @@ export type PrismaClientType = PrismaClient<
 
 export interface ContextValue {
   prisma: PrismaClientType;
-  userLoader: DataLoader<string, User, string>;
-  memberTypeLoader: DataLoader<string, MemberType, string>;
-  postLoader: DataLoader<string, Post, string>;
-  profileLoader: DataLoader<string, Profile, string>;
+  userLoader: DataLoader<string, User>;
+  memberTypeLoader: DataLoader<string, MemberType>;
+  postLoader: DataLoader<string, Post>;
+  profileLoader: DataLoader<string, Profile>;
 }
