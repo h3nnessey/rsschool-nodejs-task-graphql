@@ -14,8 +14,12 @@ import {
   User,
 } from './types/user.js';
 import { ContextValue } from './types/context.js';
-
-import { changePostInputType, createPostInputType, postType } from './types/post.js';
+import {
+  changePostInputType,
+  createPostInputType,
+  postType,
+  Post,
+} from './types/post.js';
 import {
   createProfileInputType,
   changeProfileInputType,
@@ -23,7 +27,6 @@ import {
   Profile,
 } from './types/profile.js';
 import { memberType, memberTypeId } from './types/member.js';
-import { MemberTypeId } from '../member-types/schemas.js';
 import { UUIDType } from './types/uuid.js';
 
 export const gqlResponseSchema = Type.Partial(
@@ -148,7 +151,7 @@ export const schema = new GraphQLSchema({
         args: { dto: { type: new GraphQLNonNull(createUserInputType) } },
         resolve: async (
           _source,
-          { dto }: { dto: { name: string; balance: number } },
+          { dto }: { dto: Pick<User, 'balance' | 'name'> },
           { prisma }: ContextValue,
         ) => {
           return await prisma.user.create({
@@ -161,7 +164,7 @@ export const schema = new GraphQLSchema({
         args: { dto: { type: new GraphQLNonNull(createPostInputType) } },
         resolve: async (
           _source,
-          { dto }: { dto: { title: string; content: string; authorId: string } },
+          { dto }: { dto: Omit<Post, 'id'> },
           { prisma }: ContextValue,
         ) => {
           return await prisma.post.create({ data: dto });
@@ -186,13 +189,8 @@ export const schema = new GraphQLSchema({
       deleteUser: {
         type: GraphQLBoolean,
         args: { id: { type: new GraphQLNonNull(UUIDType) } },
-        resolve: async (
-          _source,
-          { id }: { id: string },
-          { prisma, userLoader }: ContextValue,
-        ) => {
+        resolve: async (_source, { id }: { id: string }, { prisma }: ContextValue) => {
           try {
-            userLoader.clear(id);
             await prisma.user.delete({ where: { id } });
 
             return true;
@@ -236,10 +234,8 @@ export const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { id, dto }: { id: string; dto: Pick<User, 'name' | 'balance'> },
-          { prisma, userLoader }: ContextValue,
+          { prisma }: ContextValue,
         ) => {
-          userLoader.clear(id);
-
           return await prisma.user.update({ where: { id }, data: dto });
         },
       },
@@ -251,7 +247,7 @@ export const schema = new GraphQLSchema({
         },
         resolve: async (
           _source,
-          { id, dto }: { id: string; dto: { title: string; content: string } },
+          { id, dto }: { id: string; dto: Pick<Post, 'title' | 'content'> },
           { prisma }: ContextValue,
         ) => {
           return await prisma.post.update({ where: { id }, data: dto });
@@ -270,7 +266,7 @@ export const schema = new GraphQLSchema({
             dto,
           }: {
             id: string;
-            dto: { isMale: boolean; yearOfBirth: number; memberTypeId: MemberTypeId };
+            dto: Omit<Profile, 'id' | 'userId'>;
           },
           { prisma }: ContextValue,
         ) => {
@@ -286,10 +282,8 @@ export const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma, userLoader }: ContextValue,
+          { prisma }: ContextValue,
         ) => {
-          userLoader.clear(userId);
-
           return await prisma.user.update({
             where: {
               id: userId,
@@ -313,11 +307,9 @@ export const schema = new GraphQLSchema({
         resolve: async (
           _source,
           { userId, authorId }: { userId: string; authorId: string },
-          { prisma, userLoader }: ContextValue,
+          { prisma }: ContextValue,
         ) => {
           try {
-            userLoader.clear(userId);
-
             await prisma.subscribersOnAuthors.delete({
               where: {
                 subscriberId_authorId: {
